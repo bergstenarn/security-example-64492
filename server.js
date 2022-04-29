@@ -6,7 +6,6 @@ const helmet = require("helmet");
 const passport = require("passport");
 const { Strategy } = require("passport-google-oauth20");
 const cookieSession = require("cookie-session");
-const { session } = require("passport/lib");
 
 require("dotenv").config();
 
@@ -25,12 +24,22 @@ const AUTH_OPTIONS = {
   clientSecret: config.CLIENT_SECRET,
 };
 
-passport.use(new Strategy(AUTH_OPTIONS, verifyCallback));
-
 function verifyCallback(accessToken, refreshToken, profile, done) {
   console.log("Google profile", profile);
   done(null, profile);
 }
+
+passport.use(new Strategy(AUTH_OPTIONS, verifyCallback));
+
+// Save the session to the cookie
+passport.serializeUser((user, done) => {
+  done(null, user);
+});
+
+// Read the session from the cookie
+passport.deserializeUser((obj, done) => {
+  done(null, obj);
+});
 
 const app = express(AUTH_OPTIONS, verifyCallback);
 
@@ -38,12 +47,13 @@ app.use(helmet());
 
 app.use(
   cookieSession({
-    name: session,
+    name: "session",
     maxAge: 24 * 60 * 60 * 1000, // One day
     keys: [config.COOKIE_KEY_1, config.COOKIE_KEY_2],
   })
 );
 app.use(passport.initialize());
+app.use(passport.session());
 
 function checkLoggedIn(req, res, next) {
   const isLoggedIn = true; // TODO
@@ -67,7 +77,7 @@ app.get(
   passport.authenticate("google", {
     failureRedirect: "/failure",
     successRedirect: "/",
-    session: false,
+    session: true,
   }),
   (req, res) => {
     console.log("Google called us back!");
